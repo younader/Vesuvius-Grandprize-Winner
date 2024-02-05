@@ -19,6 +19,7 @@ Our implementation uses `torch`, `torch-lightning`,the [`timesformer-pytorch`](h
 
 # 🚀 Get Started
 
+I recommend using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
 
 To install this project, run:
 
@@ -29,10 +30,12 @@ pip install -r requirements
 #propagates the inklabels into the respective segment folders for training
 python prepare.py
 ```
+You can find the weights of the canonical timesformer uploaded [here](https://drive.google.com/drive/folders/1rn3GMOvtJRMBHOxVhWFVSY6IVI6xUnYp?usp=sharing)
+# Example Inference
 
+To run inference of timesformer:
 
-
-
-
-
+```bash
+python inference_timesformer.py --segment_id 20231210121321 20231221180251 --segment_path train_scrolls --model_path timesformer_wild15_20230702185753_0_fr_i3depoch=12.ckpt
+```
 
