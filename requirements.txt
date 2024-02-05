@@ -1,0 +1,12 @@
+timm 
+segmentation_models_pytorch 
+albumentations 
+wandb 
+pytorch-lightning==2.0.9 
+monai[einops] 
+warmup_scheduler 
+pandas 
+matplotlib 
+timesformer-pytorch
+tap
+
