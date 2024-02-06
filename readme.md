@@ -24,7 +24,7 @@ I recommend using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-dev
 To install this project, run:
 
 ```bash
-pip install -r requirements
+pip install -r requirements.txt
 #to download the segments from the server
 ./download.sh
 #propagates the inklabels into the respective segment folders for training
