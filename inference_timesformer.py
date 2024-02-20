@@ -29,7 +29,7 @@ class InferenceArgumentParser(Tap):
     segment_id: list[str] =['20230925002745']
     segment_path:str='./eval_scrolls'
     model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
-    out_path:str='./'
+    out_path:str=""
     stride: int = 2
     start_idx:int=15
     workers: int = 4
@@ -131,6 +131,9 @@ def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
         mask_path = glob.glob(wildcard_path_mask)[0]
         fragment_mask = cv2.imread(mask_path, 0)
         fragment_mask = np.pad(fragment_mask, [(0, pad0), (0, pad1)], constant_values=0)
+    else:
+        # White mask
+        fragment_mask = np.ones_like(images[:,:,0]) * 255
 
     return images,fragment_mask
 
@@ -331,6 +334,16 @@ if __name__ == "__main__":
             )
             wandb.log({'predictions':img})
             gc.collect()
+
+            if len(args.out_path) > 0:
+                # CV2 image
+                image_cv = (mask_pred * 255).astype(np.uint8)
+                try:
+                    os.makedirs(args.out_path,exist_ok=True)
+                except:
+                    pass
+                cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
+
     del mask_pred,test_loader,model
     torch.cuda.empty_cache()
     gc.collect()
