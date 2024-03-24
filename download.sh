@@ -33,6 +33,10 @@ rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230531121653/202305311216
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230531121653/layers/ ./train_scrolls/20230531121653/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/stephen-parsons-uploads/verso/Scroll1_part_1_wrap_verso_mask.png ./train_scrolls/verso/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/stephen-parsons-uploads/verso/Scroll1_part_1_wrap_verso_surface_volume/ ./train_scrolls/verso/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
+( 
+  cd train_scrolls/verso;
+  ln -s Scroll1_part_1_wrap_verso_mask.png verso_mask.png
+)
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230826170124/20230826170124_mask.png ./train_scrolls/20230826170124/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230826170124/layers/ ./train_scrolls/20230826170124/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230901184804/20230901184804_mask.png ./train_scrolls/20230901184804/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
@@ -43,6 +47,10 @@ rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230901234823/202309012348
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230901234823/layers/ ./train_scrolls/20230901234823/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/stephen-parsons-uploads/recto/Scroll1_part_1_wrap_recto_mask.png ./train_scrolls/recto/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/stephen-parsons-uploads/recto/Scroll1_part_1_wrap_recto_surface_volume/ ./train_scrolls/recto/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
+( 
+  cd train_scrolls/recto;
+  ln -s Scroll1_part_1_wrap_recto_mask.png recto_mask.png
+)
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230531211425/20230531211425_mask.png ./train_scrolls/20230531211425/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230531211425/layers/ ./train_scrolls/20230531211425/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20230531193658/20230531193658_mask.png ./train_scrolls/20230531193658/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
@@ -87,8 +95,8 @@ rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231031143850_superseded/2
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231031143850_superseded/layers/ ./train_scrolls/20231031143850/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184421_superseded/20231012184421_mask.png ./train_scrolls/20231012184421/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184421_superseded/layers/ ./train_scrolls/20231012184421/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
-rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184423/20231012184423_mask.png ./train_scrolls/20231012184423/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
-rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184423/layers/ ./train_scrolls/20231012184423/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
+rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184423_superseded/20231012184423_mask.png ./train_scrolls/20231012184423/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
+rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231012184423_superseded/layers/ ./train_scrolls/20231012184423/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231106155351/20231106155351_mask.png ./train_scrolls/20231106155351/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
 rclone copy :http:/full-scrolls/Scroll1.volpkg/paths/20231106155351/layers/ ./train_scrolls/20231106155351/layers/ --http-url http://$USERNAME:$PASSWORD@dl.ash2txt.org/ --progress --multi-thread-streams=8 --transfers=8
