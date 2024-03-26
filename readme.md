@@ -6,7 +6,7 @@ This repository is part of the First Place Grand Prize Submission to the Vesuviu
 
 <!-- <img align="center" width="60" height="60" src="pictures/ThaumatoAnakalyptor.png">  -->
 ## Automatic Segmentation <img align="center" width="60" height="60" src="pictures/ThaumatoAnakalyptor.png"> 
-Check out the automatic segmentation pipeline ThaumatoAnakalyptor of our winning Grand Prize submission by Julian Schiliger. 
+Check out the automatic segmentation pipeline ThaumatoAnakalyptor of our winning Grand Prize submission by Julian Schilliger. 
 [ThaumatoAnakalyptor](https://github.com/schillij95/ThaumatoAnakalyptor/tree/main) performs in full 3D and is also capable of segmenting in very mushy and twisted scroll regions.
 
 # Ink Detection Overview<img align="center" width="60" height="60" src="pictures/logo.png"> :
@@ -24,7 +24,7 @@ I recommend using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-dev
 To install this project, run:
 
 ```bash
-pip install -r requirements
+pip install -r requirements.txt
 #to download the segments from the server
 ./download.sh
 #propagates the inklabels into the respective segment folders for training
