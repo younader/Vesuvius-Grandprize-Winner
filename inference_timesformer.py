@@ -37,6 +37,7 @@ class InferenceArgumentParser(Tap):
     size:int=64
     reverse:int=0
     device:str='cuda'
+    format='tif'
 args = InferenceArgumentParser().parse_args()
 def gkern(kernlen=21, nsig=3):
     """Returns a 2D Gaussian kernel."""
@@ -110,7 +111,7 @@ def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
     end = mid + CFG.in_chans // 2
     idxs = range(start_idx, end_idx)
     for i in idxs:
-        image = cv2.imread(f"{args.segment_path}/{fragment_id}/layers/{i:02}.tif", 0)
+        image = cv2.imread(f"{args.segment_path}/{fragment_id}/layers/{i:02}.{args.format}", 0)
         pad0 = (256 - image.shape[0] % 256)
         pad1 = (256 - image.shape[1] % 256)
         image = np.pad(image, [(0, pad0), (0, pad1)], constant_values=0)
@@ -315,7 +316,7 @@ if __name__ == "__main__":
         name=f"ALL_scrolls_tta", 
         )
     for fragment_id in args.segment_id:
-        if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.tif"):
+        if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
             preds=[]
             for r in [0]:
                 for i in [17]:
