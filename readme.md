@@ -38,12 +38,9 @@ Or to run inference with the already trained model:
 python inference_timesformer.py --model_path timesformer_weights.ckpt --segment_path train_scrolls --segment_id 20231005123336
 ```
 
-Or: using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
-
-Then to install this project inside the docker image, run:
+Important note: to install the ink labels and training data inside the docker image, run:
 
 ```bash
-pip install -r requirements.txt
 #to download the segments from the server
 ./download.sh
 #propagates the inklabels into the respective segment folders for training
