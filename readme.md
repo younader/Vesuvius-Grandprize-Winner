@@ -23,7 +23,7 @@ EASY: build the docker image:
 
 ```bash
 docker build -t gp_model .
-docker run --gpus all -it -v </your-path-to-train-scrolls>:/workspace/train_scrolls youssef_gp
+docker run --gpus all --shm-size=150g -it -v </your-path-to-train-scrolls>:/workspace/train_scrolls youssef_gp
 ```
 
 Then to train:
