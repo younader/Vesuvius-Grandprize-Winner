@@ -19,9 +19,15 @@ Our implementation uses `torch`, `torch-lightning`,the [`timesformer-pytorch`](h
 
 # 🚀 Get Started
 
-I recommend using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
+EASY: build the docker image: 
 
-To install this project, run:
+```bash
+docker build -t gp_model .
+```
+
+Or: using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
+
+Then to install this project inside the docker image, run:
 
 ```bash
 pip install -r requirements.txt
