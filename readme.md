@@ -10,7 +10,7 @@ Check out the automatic segmentation pipeline ThaumatoAnakalyptor of our winning
 [ThaumatoAnakalyptor](https://github.com/schillij95/ThaumatoAnakalyptor/tree/main) performs in full 3D and is also capable of segmenting in very mushy and twisted scroll regions.
 
 # Ink Detection Overview<img align="center" width="60" height="60" src="pictures/logo.png"> :
-Our final canconical model was a timesformer small architecture with divided space-time attention. 
+Our final canonical model was a timesformer small architecture with divided space-time attention. 
 The dataset underwent expansion and cleaning rounds to increase accuracy of the labels and become as accurate as possible, approximately 15 rounds were performed between the first letters and final solution. 
 Our solution also consisted of 2 other architectures, Resnet3D-101 with pretrained weights, I3D with non-local block and maxpooling. 
 
