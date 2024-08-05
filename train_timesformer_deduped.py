@@ -203,7 +203,7 @@ cfg_init(CFG)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def read_image_mask(fragment_id,start_idx=17,end_idx=43):
-
+    fragment_id_ = fragment_id.split("_")[0]
     images = []
 
     # idxs = range(65)
@@ -213,8 +213,10 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43):
     idxs = range(start_idx, end_idx)
 
     for i in idxs:
-        
-        image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.tif", 0)
+        if os.path.exists(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.tif"):
+            image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.tif", 0)
+        else:
+            image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.jpg", 0)
 
         pad0 = (CFG.tile_size - image.shape[0] % CFG.tile_size)
         pad1 = (CFG.tile_size - image.shape[1] % CFG.tile_size)
@@ -226,20 +228,20 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43):
         if 'frag' in fragment_id:
             image = cv2.resize(image, (image.shape[1]//2,image.shape[0]//2), interpolation = cv2.INTER_AREA)
         image=np.clip(image,0,200)
-        if fragment_id=='20230827161846':
+        if fragment_id_=='20230827161846':
             image=cv2.flip(image,0)
         images.append(image)
     images = np.stack(images, axis=2)
-    if fragment_id in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']:
+    if fragment_id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']:
 
         images=images[:,:,::-1]
-    if fragment_id in ['20231022170901','20231022170900']:
-        mask = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id}_inklabels.tiff", 0)
+    if fragment_id_ in ['20231022170901','20231022170900']:
+        mask = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.tiff", 0)
     else:
-        mask = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id}_inklabels.png", 0)
+        mask = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.png", 0)
     # mask = np.pad(mask, [(0, pad0), (0, pad1)], constant_values=0)
-    fragment_mask=cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id}_mask.png", 0)
-    if fragment_id=='20230827161846':
+    fragment_mask=cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id_}_mask.png", 0)
+    if fragment_id_=='20230827161846':
         fragment_mask=cv2.flip(fragment_mask,0)
 
     fragment_mask = np.pad(fragment_mask, [(0, pad0), (0, pad1)], constant_values=0)
@@ -264,10 +266,14 @@ def get_train_valid_dataset():
 #BIG 6:'20231005123333','20231022170900','20231012173610','20230702185753','20230929220924','20231007101615'
     for fragment_id in ['20231210121321','20231106155350','20231005123336','20230820203112','20230620230619','20230826170124','20230702185753','20230522215721','20230531193658','20230520175435','20230903193206','20230902141231','20231007101615','20230929220924','recto','verso','20231016151000','20231012184423','20231031143850']:  
 #,
-        
-    # for fragment_id in ['20231210121321','20231106155350']:
+        if not os.path.exists(f"train_scrolls/{fragment_id}"):
+            fragment_id = fragment_id + "_superseded"
+        # for fragment_id in ['20231210121321','20231106155350']:
         print('reading ',fragment_id)
-        image, mask,fragment_mask = read_image_mask(fragment_id)
+        try:
+         image, mask,fragment_mask = read_image_mask(fragment_id)
+        except:
+            print(f"couldnt load {fragment_id}!")
         x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
         y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
 
