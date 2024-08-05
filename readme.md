@@ -19,9 +19,15 @@ Our implementation uses `torch`, `torch-lightning`,the [`timesformer-pytorch`](h
 
 # 🚀 Get Started
 
-I recommend using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
+EASY: build the docker image: 
 
-To install this project, run:
+```bash
+docker build -t gp_model .
+```
+
+Or: using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
+
+Then to install this project inside the docker image, run:
 
 ```bash
 pip install -r requirements.txt
@@ -36,6 +42,7 @@ You can find the weights of the canonical timesformer uploaded [here](https://dr
 To run inference of timesformer:
 
 ```bash
-python inference_timesformer.py --segment_id 20231210121321 20231221180251 --segment_path train_scrolls --model_path timesformer_wild15_20230702185753_0_fr_i3depoch=12.ckpt
+python inference_timesformer.py --segment_id 20231210121321 20231221180251 --segment_path $(pwd)/train_scrolls --model_path timesformer_wild15_20230702185753_0_fr_i3depoch=12.ckpt
 ```
 
+The optional parameter ```--out_path``` can be used to specify the output path of the predictions.

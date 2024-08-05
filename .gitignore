@@ -1,0 +1,3 @@
+timesformer_*.ckpt
+wandb/
+train_scrolls/
