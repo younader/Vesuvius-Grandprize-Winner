@@ -23,6 +23,19 @@ EASY: build the docker image:
 
 ```bash
 docker build -t gp_model .
+docker run --gpus all -it -v </your-path-to-train-scrolls>:/workspace/train_scrolls youssef_gp
+```
+
+Then to train:
+
+```bash
+python train_timesformer_og.py
+```
+
+Or to run inference with the already trained model:
+
+```bash
+python inference_timesformer.py --model_path timesformer_weights.ckpt --segment_path train_scrolls --segment_id 20231005123336
 ```
 
 Or: using a docker image like `pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel` for your development environment. Kaggle/Colab images should work fine as well. 
