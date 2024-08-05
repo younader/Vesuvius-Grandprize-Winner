@@ -10,13 +10,14 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install gdown to handle Google Drive file downloads
+RUN pip install gdown
+
 # Copy the rest of the project files into the container
 COPY . .
 
-# Download the canonical timesformer weights
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget -O timesformer_weights.ckpt https://drive.google.com/uc?export=download&id=13Iu-dR-1sKq_oGJfNa86LcBSv1o4XA37
+# Download the canonical timesformer weights from Google Drive using gdown
+RUN gdown --id 13Iu-dR-1sKq_oGJfNa86LcBSv1o4XA37 -O /workspace/timesformer_weights.ckpt
 
 # Set the entrypoint to bash so the command line is opened
 ENTRYPOINT ["bash"]
