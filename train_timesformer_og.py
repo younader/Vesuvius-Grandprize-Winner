@@ -132,7 +132,7 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43):
         if os.path.exists(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.tif"):
             image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.tif", 0)
         else:
-            image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.jpg", 0)
+            image = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/layers/{i:02}.jpg", 0).astype(np.uint16)*256
         pad0 = (CFG.tile_size - image.shape[0] % CFG.tile_size)
         pad1 = (CFG.tile_size - image.shape[1] % CFG.tile_size)
         image = np.pad(image, [(0, pad0), (0, pad1)], constant_values=0)        
@@ -160,6 +160,7 @@ def get_train_valid_dataset():
     valid_xyxys = []
   
     for fragment_id in ['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']:  
+        # for fragment_id in ['20231210121321','20231022170901']:
         if not os.path.exists(f"train_scrolls/{fragment_id}"):
             fragment_id = fragment_id + "_superseded"
         print('reading ',fragment_id)

@@ -42,7 +42,7 @@ def read_image_mask(fragment_id,start_idx=15,end_idx=45):
 
 def run_sanity_checks():
     for fragment_id in ['20231210121321','20231106155350','20231005123336','20230820203112','20230620230619','20230826170124','20230702185753','20230522215721','20230531193658','20230520175435','20230903193206','20230902141231','20231007101615','20230929220924','recto','verso','20231016151000','20231012184423','20231031143850']:  
-        fragment_id_ = fragment_id.split("_")[0]
+        fragment_id_ = "_".join(fragment_id.split("_")[:min(1, len(fragment_id)-1)])
         print(fragment_id)
         if not os.path.exists(f'train_scrolls/{fragment_id_}'):
             fragment_id_ += "_superseded"
