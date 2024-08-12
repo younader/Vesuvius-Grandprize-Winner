@@ -173,21 +173,20 @@ def worker_function(fragment_id, CFG):
 
     for a in y1_list:
         for b in x1_list:
-            for yi in range(0,CFG.tile_size,CFG.size):
-                for xi in range(0,CFG.tile_size,CFG.size):
-                    y1=a+yi
-                    x1=b+xi
-                    y2=y1+CFG.size
-                    x2=x1+CFG.size
-                    if fragment_id!=CFG.valid_id:
-                        if not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05):
-                            if not np.any(fragment_mask[a:a+ CFG.tile_size, b:b + CFG.tile_size]==0):
+            if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
+                if (fragment_id==CFG.valid_id) or (not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05)):
+                    for yi in range(0,CFG.tile_size,CFG.size):
+                        for xi in range(0,CFG.tile_size,CFG.size):
+                            y1=a+yi
+                            x1=b+xi
+                            y2=y1+CFG.size
+                            x2=x1+CFG.size
+                            if fragment_id!=CFG.valid_id:
                                 train_images.append(image[y1:y2, x1:x2])
                                 train_masks.append(mask[y1:y2, x1:x2, None])
                                 assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                    if fragment_id==CFG.valid_id:
-                        if (y1,y2,x1,x2) not in windows_dict:
-                            if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
+                            if fragment_id==CFG.valid_id:
+                                if (y1,y2,x1,x2) not in windows_dict:
                                     valid_images.append(image[y1:y2, x1:x2])
                                     valid_masks.append(mask[y1:y2, x1:x2, None])
                                     valid_xyxys.append([x1, y1, x2, y2])
@@ -257,21 +256,20 @@ def get_train_valid_dataset_st():
 
         for a in y1_list:
             for b in x1_list:
-                for yi in range(0,CFG.tile_size,CFG.size):
-                    for xi in range(0,CFG.tile_size,CFG.size):
-                        y1=a+yi
-                        x1=b+xi
-                        y2=y1+CFG.size
-                        x2=x1+CFG.size
-                        if fragment_id!=CFG.valid_id:
-                            if not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05):
-                                if not np.any(fragment_mask[a:a+ CFG.tile_size, b:b + CFG.tile_size]==0):
+                if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
+                    if (fragment_id==CFG.valid_id) or (not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05)):
+                        for yi in range(0,CFG.tile_size,CFG.size):
+                            for xi in range(0,CFG.tile_size,CFG.size):
+                                y1=a+yi
+                                x1=b+xi
+                                y2=y1+CFG.size
+                                x2=x1+CFG.size
+                                if fragment_id!=CFG.valid_id:
                                     train_images.append(image[y1:y2, x1:x2])
                                     train_masks.append(mask[y1:y2, x1:x2, None])
                                     assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                        if fragment_id==CFG.valid_id:
-                            if (y1,y2,x1,x2) not in windows_dict:
-                                if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
+                                if fragment_id==CFG.valid_id:
+                                    if (y1,y2,x1,x2) not in windows_dict:
                                         valid_images.append(image[y1:y2, x1:x2])
                                         valid_masks.append(mask[y1:y2, x1:x2, None])
                                         valid_xyxys.append([x1, y1, x2, y2])
