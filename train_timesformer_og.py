@@ -11,6 +11,7 @@ from pytorch_lightning.loggers import WandbLogger
 from timesformer_pytorch import TimeSformer
 
 import random
+import threading
 
 import numpy as np
 import wandb
@@ -123,7 +124,7 @@ cfg_init(CFG)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def read_image_mask(fragment_id,start_idx=17,end_idx=43):
+def read_image_mask(fragment_id,start_idx=17,end_idx=43, CFG=CFG):
     fragment_id_ = fragment_id.split("_")[0]
     images = []
     idxs = range(start_idx, end_idx)
@@ -139,9 +140,9 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43):
         image=np.clip(image,0,200)
         images.append(image)
     images = np.stack(images, axis=2)
-    if fragment_id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']:
+    if any(id_ in fragment_id_ for id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']):
         images=images[:,:,::-1]
-    if fragment_id_ in ['20231022170901','20231022170900']:
+    if any(id_ in fragment_id_ for id_ in ['20231022170901','20231022170900']):
         mask = cv2.imread( f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.tiff", 0)
     else:
         mask = cv2.imread( f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.png", 0)
@@ -151,7 +152,87 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43):
     mask/=255
     return images, mask,fragment_mask
 
-def get_train_valid_dataset():
+def worker_function(fragment_id, CFG):
+    train_images = []
+    train_masks = []
+    valid_images = []
+    valid_masks = []
+    valid_xyxys = []
+
+    if not os.path.exists(f"train_scrolls/{fragment_id}"):
+        fragment_id = fragment_id + "_superseded"
+    print('reading ',fragment_id)
+    try:
+        image, mask, fragment_mask = read_image_mask(fragment_id, CFG=CFG)
+    except:
+        return None
+    x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
+    y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
+    windows_dict={}
+
+    for a in y1_list:
+        for b in x1_list:
+            for yi in range(0,CFG.tile_size,CFG.size):
+                for xi in range(0,CFG.tile_size,CFG.size):
+                    y1=a+yi
+                    x1=b+xi
+                    y2=y1+CFG.size
+                    x2=x1+CFG.size
+                    if fragment_id!=CFG.valid_id:
+                        if not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05):
+                            if not np.any(fragment_mask[a:a+ CFG.tile_size, b:b + CFG.tile_size]==0):
+                                train_images.append(image[y1:y2, x1:x2])
+                                train_masks.append(mask[y1:y2, x1:x2, None])
+                                assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
+                    if fragment_id==CFG.valid_id:
+                        if (y1,y2,x1,x2) not in windows_dict:
+                            if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
+                                    valid_images.append(image[y1:y2, x1:x2])
+                                    valid_masks.append(mask[y1:y2, x1:x2, None])
+                                    valid_xyxys.append([x1, y1, x2, y2])
+                                    assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
+                                    windows_dict[(y1,y2,x1,x2)]='1'
+
+    print("finished reading fragment", fragment_id)
+
+    return train_images, train_masks, valid_images, valid_masks, valid_xyxys
+
+def get_train_valid_dataset(fragment_ids=['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']):
+    threads = []
+    results = [None] * len(fragment_ids)
+
+    # Function to run in each thread
+    def thread_target(idx, fragment_id):
+        results[idx] = worker_function(fragment_id, CFG)
+
+    # Create and start threads
+    for idx, fragment_id in enumerate(fragment_ids):
+        thread = threading.Thread(target=thread_target, args=(idx, fragment_id))
+        threads.append(thread)
+        thread.start()
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    train_images = []
+    train_masks = []
+    valid_images = []
+    valid_masks = []
+    valid_xyxys = []
+    print("Aggregating results")
+    for r in results:
+        if r is None:
+            continue
+        train_images += r[0]
+        train_masks += r[1]
+        valid_images += r[2]
+        valid_masks += r[3]
+        valid_xyxys += r[4]
+
+    return train_images, train_masks, valid_images, valid_masks, valid_xyxys
+
+def get_train_valid_dataset_st():
     train_images = []
     train_masks = []
 
