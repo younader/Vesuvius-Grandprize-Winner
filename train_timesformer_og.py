@@ -165,6 +165,7 @@ def worker_function(fragment_id, CFG):
     try:
         image, mask, fragment_mask = read_image_mask(fragment_id, CFG=CFG)
     except:
+        print("aborted reading fragment", fragment_id)
         return None
     x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
     y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
