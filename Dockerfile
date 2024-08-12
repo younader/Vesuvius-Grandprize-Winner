@@ -5,6 +5,7 @@ FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
 WORKDIR /workspace
 
 # Install gdown to handle Google Drive file downloads
+RUN pip install --upgrade pip
 RUN pip install gdown
 
 # Download the canonical timesformer weights from Google Drive using gdown
