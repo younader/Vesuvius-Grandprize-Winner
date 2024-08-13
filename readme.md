@@ -22,7 +22,7 @@ Our implementation uses `torch`, `torch-lightning`,the [`timesformer-pytorch`](h
 EASY: build the docker image: 
 
 ```bash
-docker build -t gp_model .
+docker build -t youssef_gp .
 docker run --gpus all --shm-size=150g -it -v </your-path-to-train-scrolls>:/workspace/train_scrolls youssef_gp
 ```
 
