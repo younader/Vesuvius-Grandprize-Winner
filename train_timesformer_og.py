@@ -232,52 +232,6 @@ def get_train_valid_dataset(fragment_ids=['20231210121321','20231022170901','202
 
     return train_images, train_masks, valid_images, valid_masks, valid_xyxys
 
-def get_train_valid_dataset_st():
-    train_images = []
-    train_masks = []
-
-    valid_images = []
-    valid_masks = []
-    valid_xyxys = []
-  
-    for fragment_id in ['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']:  
-        # for fragment_id in ['20231210121321', '20231022170901']:
-        if not os.path.exists(f"train_scrolls/{fragment_id}"):
-            fragment_id = fragment_id + "_superseded"
-        print('reading ',fragment_id)
-        try:
-            image, mask,fragment_mask = read_image_mask(fragment_id)
-        except Exception as e:
-            print(f"couldnt load {fragment_id}: {str(e)}!")
-            continue
-        x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
-        y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
-        windows_dict={}
-
-        for a in y1_list:
-            for b in x1_list:
-                if not np.any(fragment_mask[a:a + CFG.tile_size, b:b + CFG.tile_size]==0):
-                    if (fragment_id==CFG.valid_id) or (not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05)):
-                        for yi in range(0,CFG.tile_size,CFG.size):
-                            for xi in range(0,CFG.tile_size,CFG.size):
-                                y1=a+yi
-                                x1=b+xi
-                                y2=y1+CFG.size
-                                x2=x1+CFG.size
-                                if fragment_id!=CFG.valid_id:
-                                    train_images.append(image[y1:y2, x1:x2])
-                                    train_masks.append(mask[y1:y2, x1:x2, None])
-                                    assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                                if fragment_id==CFG.valid_id:
-                                    if (y1,y2,x1,x2) not in windows_dict:
-                                        valid_images.append(image[y1:y2, x1:x2])
-                                        valid_masks.append(mask[y1:y2, x1:x2, None])
-                                        valid_xyxys.append([x1, y1, x2, y2])
-                                        assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                                        windows_dict[(y1,y2,x1,x2)]='1'
-
-    return train_images, train_masks, valid_images, valid_masks, valid_xyxys
-
 def get_transforms(data, cfg):
     if data == 'train':
         aug = A.Compose(cfg.train_aug_list)
