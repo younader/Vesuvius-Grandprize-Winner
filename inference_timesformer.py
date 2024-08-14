@@ -23,9 +23,20 @@ from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 print(f"Using {torch.cuda.device_count()} GPUs")
-print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
-print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
+try:
+    print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
+except:
+    print("No GPUs visible")
+    # Detect the number of GPUs available
+    num_gpus = torch.cuda.device_count()
+
+    # Generate a string "0,1,2,...,num_gpus-1"
+    gpu_ids = ",".join(str(i) for i in range(num_gpus))
+
+    # Set the CUDA_VISIBLE_DEVICES environment variable
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+    print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
 from tap import Tap
 import glob
 
