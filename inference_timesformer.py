@@ -381,47 +381,47 @@ if __name__ == "__main__":
         name=f"ALL_scrolls_tta", 
         )
 
-    for fragment_id in args.segment_id:
-        if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
-            preds=[]
-            for r in [0]:
-                for i in [17]:
-                    start_f=i
-                    end_f=start_f+CFG.in_chans
-                    test_loader,test_xyxz,test_shape,fragment_mask=get_img_splits(fragment_id,start_f,end_f,r)
-                    mask_pred= predict_fn(test_loader, model, device, test_xyxz,test_shape)
-                    mask_pred=np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
-                    mask_pred/=mask_pred.max()
+    try:
+        for fragment_id in args.segment_id:
+            if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
+                preds=[]
+                for r in [0]:
+                    for i in [17]:
+                        start_f=i
+                        end_f=start_f+CFG.in_chans
+                        test_loader,test_xyxz,test_shape,fragment_mask=get_img_splits(fragment_id,start_f,end_f,r)
+                        mask_pred= predict_fn(test_loader, model, device, test_xyxz,test_shape)
+                        mask_pred=np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
+                        mask_pred/=mask_pred.max()
 
-                    preds.append(mask_pred)
+                        preds.append(mask_pred)
 
-                    if len(args.out_path) > 0:
-                        # CV2 image
-                        image_cv = (mask_pred * 255).astype(np.uint8)
-                        try:
-                            os.makedirs(args.out_path,exist_ok=True)
-                        except:
-                            pass
-                        cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
-                    del mask_pred
+                        if len(args.out_path) > 0:
+                            # CV2 image
+                            image_cv = (mask_pred * 255).astype(np.uint8)
+                            try:
+                                os.makedirs(args.out_path,exist_ok=True)
+                            except:
+                                pass
+                            cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
+                        del mask_pred
 
-            img=wandb.Image(
-            preds[0], 
-            caption=f"{fragment_id}"
-            )
-            wandb.log({'predictions':img})
-            gc.collect()
+                img=wandb.Image(
+                preds[0], 
+                caption=f"{fragment_id}"
+                )
+                wandb.log({'predictions':img})
+                gc.collect()
+    finally:
+        del test_loader, model
+        torch.cuda.empty_cache()
+        gc.collect()
+        wandb.finish()
 
+        # Explicitly shut down the DataParallel model
+        if isinstance(model, DataParallel):
+            model = model.module  # Extract the original model
+        model.cpu()  # Move the model to CPU
+        del model  # Delete the model to free up GPU memory
 
-    del test_loader, model
-    torch.cuda.empty_cache()
-    gc.collect()
-    wandb.finish()
-    
-    # Explicitly shut down the DataParallel model
-    if isinstance(model, DataParallel):
-        model = model.module  # Extract the original model
-    model.cpu()  # Move the model to CPU
-    del model  # Delete the model to free up GPU memory
-
-    torch.cuda.empty_cache()  # Clean up GPU memory again
+        torch.cuda.empty_cache()  # Clean up GPU memory again
