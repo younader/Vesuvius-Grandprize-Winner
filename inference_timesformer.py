@@ -19,20 +19,20 @@ class InferenceArgumentParser(Tap):
     multigpu:bool=False
 args = InferenceArgumentParser().parse_args()
 
-def get_available_gpus():
-    try:
-        # Use nvidia-smi to get the number of available GPUs
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
-            stdout=subprocess.PIPE,
-            text=True
-        )
-        gpu_count = len(result.stdout.splitlines())
-        return gpu_count
-    except Exception as e:
-        print(f"Could not detect GPUs: {e}")
-        return 0
 if args.multigpu:
+    def get_available_gpus():
+        try:
+            # Use nvidia-smi to get the number of available GPUs
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+                stdout=subprocess.PIPE,
+                text=True
+            )
+            gpu_count = len(result.stdout.splitlines())
+            return gpu_count
+        except Exception as e:
+            print(f"Could not detect GPUs: {e}")
+            return 0
     try:
         print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
         num_gpus = len(os.environ['CUDA_VISIBLE_DEVICES'].split(","))
@@ -49,7 +49,6 @@ if args.multigpu:
         # Set the CUDA_VISIBLE_DEVICES environment variable
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
         print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
-    
 else:
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     num_gpus = 1
