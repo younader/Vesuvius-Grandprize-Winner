@@ -31,9 +31,7 @@ except:
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
     print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
-# Set the CUDA_VISIBLE_DEVICES environment variable
-os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")import torch.nn as nn
+import torch.nn as nn
 from torch.nn import DataParallel
 import torch.nn.functional as F
 from timesformer_pytorch import TimeSformer
