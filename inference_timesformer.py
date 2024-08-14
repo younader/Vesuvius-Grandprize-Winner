@@ -288,6 +288,7 @@ def scheduler_step(scheduler, avg_val_loss, epoch):
     scheduler.step(epoch)
 
 def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
+    model.eval()
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
     kernel = gkern(CFG.size, 1)
@@ -302,19 +303,19 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
             y_preds = model(images)
         y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
 
-        for i, (x1, y1, x2, y2) in enumerate(xys):
-            # Perform interpolation on the GPU
-            y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
+        # for i, (x1, y1, x2, y2) in enumerate(xys):
+        #     # Perform interpolation on the GPU
+        #     y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
             
-            # Perform multiplication on the GPU
-            multiplied_result = y_pred_resized * kernel_tensor
+        #     # Perform multiplication on the GPU
+        #     multiplied_result = y_pred_resized * kernel_tensor
 
-            # Move the result to CPU and convert to numpy
-            multiplied_result_cpu = multiplied_result.cpu().numpy()
+        #     # Move the result to CPU and convert to numpy
+        #     multiplied_result_cpu = multiplied_result.cpu().numpy()
 
-            # Update mask_pred and mask_count on CPU
-            mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
-            mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
+        #     # Update mask_pred and mask_count on CPU
+        #     mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
+        #     mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
     mask_pred /= mask_count
     return mask_pred
@@ -330,6 +331,7 @@ if __name__ == "__main__":
         project="Vesuvius", 
         name=f"ALL_scrolls_tta", 
         )
+    print(f"using device {device}")
     for fragment_id in args.segment_id:
         if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
             preds=[]
