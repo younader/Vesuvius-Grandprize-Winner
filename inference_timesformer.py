@@ -1,5 +1,6 @@
 import os
 import torch.nn as nn
+from torch.nn import DataParallel
 import torch.nn.functional as F
 from timesformer_pytorch import TimeSformer
 import torch
@@ -21,7 +22,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from tap import Tap
 import glob
 
@@ -290,7 +291,6 @@ def predict_fn(test_loader, model, device, test_xyxys,pred_shape):
     mask_count = np.zeros(pred_shape)
     kernel=gkern(CFG.size,1)
     kernel=kernel/kernel.max()
-    model.eval()
 
     for step, (images,xys) in tqdm(enumerate(test_loader),total=len(test_loader)):
         images = images.to(device)
@@ -308,8 +308,10 @@ def predict_fn(test_loader, model, device, test_xyxys,pred_shape):
 import gc
 
 if __name__ == "__main__":
-    model=RegressionPLModel.load_from_checkpoint(args.model_path,strict=False)
-    model.cuda()
+    # Loading the model
+    model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
+    model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
+    model.to(device)
     model.eval()
     wandb.init(
         project="Vesuvius", 
