@@ -91,7 +91,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 32
+    num_workers = 16
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -304,6 +304,7 @@ def scheduler_step(scheduler, avg_val_loss, epoch):
 def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
+    mask_count_kernel = np.ones((CFG.size, CFG.size))
     kernel = gkern(CFG.size, 1)
     kernel = kernel / kernel.max()
     model.eval()
@@ -318,19 +319,33 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
                 y_preds = model(images)
         y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
 
+        # Resize all predictions at once
+        y_preds_resized = F.interpolate(y_preds.float(), scale_factor=16, mode='bilinear')  # Shape (batch_size, 1, 64, 64)
+        
+        # Multiply by the kernel tensor
+        y_preds_multiplied = y_preds_resized * kernel_tensor  # Broadcasting kernel to all images in the batch
+
+        # Move results to CPU as a NumPy array
+        y_preds_multiplied_cpu = y_preds_multiplied.squeeze(1).cpu().numpy()  # Shape: (batch_size, 64, 64)
+
+        # Update mask_pred and mask_count in a batch manner
         for i, (x1, y1, x2, y2) in enumerate(xys):
-            # Perform interpolation on the GPU
-            y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
+            mask_pred[y1:y2, x1:x2] += y_preds_multiplied_cpu[i]
+            mask_count[y1:y2, x1:x2] += mask_count_kernel
+
+        # for i, (x1, y1, x2, y2) in enumerate(xys):
+        #     # Perform interpolation on the GPU
+        #     y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
             
-            # Perform multiplication on the GPU
-            multiplied_result = y_pred_resized * kernel_tensor
+        #     # Perform multiplication on the GPU
+        #     multiplied_result = y_pred_resized * kernel_tensor
 
-            # Move the result to CPU and convert to numpy
-            multiplied_result_cpu = multiplied_result.cpu().numpy()
+        #     # Move the result to CPU and convert to numpy
+        #     multiplied_result_cpu = multiplied_result.cpu().numpy()
 
-            # Update mask_pred and mask_count on CPU
-            mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
-            mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
+        #     # Update mask_pred and mask_count on CPU
+        #     mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
+        #     mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
     mask_pred /= mask_count
     return mask_pred
