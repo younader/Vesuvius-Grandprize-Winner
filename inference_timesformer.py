@@ -105,6 +105,7 @@ def cfg_init(cfg, mode='val'):
 cfg_init(CFG)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Device: {device}")
 def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
     images = []
     mid = 65 // 2
