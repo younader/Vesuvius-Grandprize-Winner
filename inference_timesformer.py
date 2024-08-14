@@ -304,7 +304,7 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
     mask_count_kernel = np.ones((CFG.size, CFG.size))
     kernel = gkern(CFG.size, 1)
     kernel = kernel / kernel.max()
-    model.eval()
+    # model.eval()
 
     kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
 
@@ -312,8 +312,8 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
         images = images.to(device)
         batch_size = images.size(0)
         with torch.no_grad():
-            with torch.autocast(device_type="cuda"):
-                y_preds = model(images)
+            # with torch.autocast(device_type="cuda"):
+            y_preds = model(images)
         y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
 
         # Resize all predictions at once
