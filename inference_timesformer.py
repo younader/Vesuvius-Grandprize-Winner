@@ -1,5 +1,23 @@
 import os
 import subprocess
+from tap import Tap
+import glob
+
+class InferenceArgumentParser(Tap):
+    segment_id: list[str] =['20230925002745']
+    segment_path:str='./eval_scrolls'
+    model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
+    out_path:str=""
+    stride: int = 2
+    start_idx:int=15
+    workers: int = 4
+    batch_size: int = 64
+    size:int=64
+    reverse:int=0
+    device:str='cuda'
+    format='tif'
+    multigpu:bool=False
+args = InferenceArgumentParser().parse_args()
 
 def get_available_gpus():
     try:
@@ -14,22 +32,27 @@ def get_available_gpus():
     except Exception as e:
         print(f"Could not detect GPUs: {e}")
         return 0
+if args.multigpu:
+    try:
+        print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        num_gpus = len(os.environ['CUDA_VISIBLE_DEVICES'].split(","))
+    except:
+        print("No GPUs specified in CUDA_VISIBLE_DEVICES")
+        # Detect the number of GPUs available
+        num_gpus = get_available_gpus()
+        print(f"Detected {num_gpus} GPUs")
+        num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
 
-try:
-    print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
-except:
-    print("No GPUs specified in CUDA_VISIBLE_DEVICES")
-    # Detect the number of GPUs available
-    num_gpus = get_available_gpus()
-    print(f"Detected {num_gpus} GPUs")
-    num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
+        # Generate a string "0,1,2,...,num_gpus-1"
+        gpu_ids = ",".join(str(i) for i in range(num_gpus))
 
-    # Generate a string "0,1,2,...,num_gpus-1"
-    gpu_ids = ",".join(str(i) for i in range(num_gpus))
-
-    # Set the CUDA_VISIBLE_DEVICES environment variable
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-    print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        # Set the CUDA_VISIBLE_DEVICES environment variable
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+        print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+    
+else:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    num_gpus = 1
 
 import torch.nn as nn
 from torch.nn import DataParallel
@@ -56,23 +79,6 @@ import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 print(f"Using {torch.cuda.device_count()} GPUs")
 
-from tap import Tap
-import glob
-
-class InferenceArgumentParser(Tap):
-    segment_id: list[str] =['20230925002745']
-    segment_path:str='./eval_scrolls'
-    model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
-    out_path:str=""
-    stride: int = 2
-    start_idx:int=15
-    workers: int = 4
-    batch_size: int = 64
-    size:int=64
-    reverse:int=0
-    device:str='cuda'
-    format='tif'
-args = InferenceArgumentParser().parse_args()
 def gkern(kernlen=21, nsig=3):
     """Returns a 2D Gaussian kernel."""
     x = np.linspace(-nsig, nsig, kernlen+1)
@@ -110,7 +116,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 16 * torch.cuda.device_count()
+    num_workers = 16 * num_gpus
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -198,7 +204,7 @@ def get_img_splits(fragment_id,s,e,rotation=0):
     test_loader = DataLoader(test_dataset,
                               batch_size=CFG.valid_batch_size,
                               shuffle=False,
-                              num_workers=CFG.num_workers, pin_memory=True, drop_last=False,
+                              num_workers=CFG.num_workers, pin_memory=False, drop_last=False,
                               )
     return test_loader, np.stack(xyxys),(image.shape[0],image.shape[1]),fragment_mask
 
