@@ -176,7 +176,7 @@ def get_img_splits(fragment_id,s,e,rotation=0):
     test_loader = DataLoader(test_dataset,
                               batch_size=CFG.valid_batch_size,
                               shuffle=False,
-                              num_workers=CFG.num_workers, pin_memory=False, drop_last=False,
+                              num_workers=CFG.num_workers, pin_memory=(args.gpus==1), drop_last=False,
                               )
     return test_loader, np.stack(xyxys),(image.shape[0],image.shape[1]),fragment_mask
 
