@@ -67,7 +67,7 @@ class InferenceArgumentParser(Tap):
     stride: int = 2
     start_idx:int=15
     workers: int = 4
-    batch_size: int = 64
+    batch_size: int = 128
     size:int=64
     reverse:int=0
     device:str='cuda'
