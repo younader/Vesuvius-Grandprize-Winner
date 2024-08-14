@@ -16,42 +16,15 @@ class InferenceArgumentParser(Tap):
     reverse:int=0
     device:str='cuda'
     format:str='tif'
-    multigpu:bool=False
+    gpus:int=1
 args = InferenceArgumentParser().parse_args()
 
-if args.multigpu:
-    def get_available_gpus():
-        try:
-            # Use nvidia-smi to get the number of available GPUs
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
-                stdout=subprocess.PIPE,
-                text=True
-            )
-            gpu_count = len(result.stdout.splitlines())
-            return gpu_count
-        except Exception as e:
-            print(f"Could not detect GPUs: {e}")
-            return 0
-    try:
-        print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
-        num_gpus = len(os.environ['CUDA_VISIBLE_DEVICES'].split(","))
-    except:
-        print("No GPUs specified in CUDA_VISIBLE_DEVICES")
-        # Detect the number of GPUs available
-        num_gpus = get_available_gpus()
-        print(f"Detected {num_gpus} GPUs")
-        num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
+# Generate a string "0,1,2,...,num_gpus-1"
+gpu_ids = ",".join(str(i) for i in range(args.gpus))
 
-        # Generate a string "0,1,2,...,num_gpus-1"
-        gpu_ids = ",".join(str(i) for i in range(num_gpus))
-
-        # Set the CUDA_VISIBLE_DEVICES environment variable
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-        print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
-else:
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    num_gpus = 1
+# Set the CUDA_VISIBLE_DEVICES environment variable
+os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
 import torch.nn as nn
 from torch.nn import DataParallel
@@ -378,7 +351,7 @@ import gc
 if __name__ == "__main__":
     # Loading the model
     model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
-    if args.multigpu:
+    if args.gpus > 1:
         model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
     model.to(device)
     model.eval()
@@ -419,7 +392,7 @@ if __name__ == "__main__":
                 wandb.log({'predictions':img})
                 gc.collect()
     finally:
-        del test_loader, model
+        del test_loader
         torch.cuda.empty_cache()
         gc.collect()
         wandb.finish()
