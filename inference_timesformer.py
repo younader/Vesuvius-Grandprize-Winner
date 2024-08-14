@@ -1,6 +1,5 @@
 import os
 import torch.nn as nn
-from torch.nn import DataParallel
 import torch.nn.functional as F
 from timesformer_pytorch import TimeSformer
 import torch
@@ -77,7 +76,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 128
+    num_workers = 16
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -105,7 +104,6 @@ def cfg_init(cfg, mode='val'):
 cfg_init(CFG)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Device: {device}")
 def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
     images = []
     mid = 65 // 2
@@ -287,22 +285,25 @@ def get_scheduler(cfg, optimizer):
 def scheduler_step(scheduler, avg_val_loss, epoch):
     scheduler.step(epoch)
 
-def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
+def predict_fn(test_loader, model, device, test_xyxys,pred_shape):
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
-    kernel = gkern(CFG.size, 1)
-    kernel = kernel / kernel.max()
+    kernel=gkern(CFG.size,1)
+    kernel=kernel/kernel.max()
     model.eval()
 
-    kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
+    # kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
 
-    for step, (images, xys) in tqdm(enumerate(test_loader), total=len(test_loader)):
+    for step, (images,xys) in tqdm(enumerate(test_loader),total=len(test_loader)):
         images = images.to(device)
         batch_size = images.size(0)
         with torch.no_grad():
             with torch.autocast(device_type="cuda"):
                 y_preds = model(images)
-        y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
+        y_preds = torch.sigmoid(y_preds).to('cpu')
+        # for i, (x1, y1, x2, y2) in enumerate(xys):
+        #     mask_pred[y1:y2, x1:x2] += np.multiply(F.interpolate(y_preds[i].unsqueeze(0).float(),scale_factor=16,mode='bilinear').squeeze(0).squeeze(0).numpy(),kernel)
+        #     mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
         # for i, (x1, y1, x2, y2) in enumerate(xys):
         #     # Perform interpolation on the GPU
@@ -323,16 +324,13 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
 import gc
 
 if __name__ == "__main__":
-    # Loading the model
-    model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
-    # model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
+    model=RegressionPLModel.load_from_checkpoint(args.model_path,strict=False)
     model.cuda()
     model.eval()
     wandb.init(
         project="Vesuvius", 
         name=f"ALL_scrolls_tta", 
         )
-    print(f"using device {device}")
     for fragment_id in args.segment_id:
         if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
             preds=[]
