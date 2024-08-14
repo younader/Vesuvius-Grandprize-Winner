@@ -19,7 +19,7 @@ class InferenceArgumentParser(Tap):
     gpus:int=1
 args = InferenceArgumentParser().parse_args()
 
-# Generate a string "0,1,2,...,num_gpus-1"
+# Generate a string "0,1,2,...,args.gpus-1"
 gpu_ids = ",".join(str(i) for i in range(args.gpus))
 
 # Set the CUDA_VISIBLE_DEVICES environment variable
@@ -88,7 +88,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 16 * num_gpus
+    num_workers = 16 * args.gpus
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
