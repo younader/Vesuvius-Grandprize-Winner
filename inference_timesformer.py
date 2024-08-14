@@ -18,7 +18,7 @@ def get_available_gpus():
 try:
     print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
 except:
-    print("No GPUs visible")
+    print("No GPUs specified in CUDA_VISIBLE_DEVICES")
     # Detect the number of GPUs available
     num_gpus = get_available_gpus()
     print(f"Detected {num_gpus} GPUs")
@@ -138,7 +138,7 @@ def cfg_init(cfg, mode='val'):
 cfg_init(CFG)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Device: {device}")
+
 def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
     images = []
     mid = 65 // 2
@@ -380,7 +380,7 @@ if __name__ == "__main__":
         project="Vesuvius", 
         name=f"ALL_scrolls_tta", 
         )
-    print(f"using device {device}")
+
     for fragment_id in args.segment_id:
         if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
             preds=[]
