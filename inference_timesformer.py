@@ -192,8 +192,8 @@ def get_img_splits(fragment_id,s,e,rotation=0):
     # check for superseded fragment
     try:
         image,fragment_mask = read_image_mask(fragment_id, s,e,rotation)
-    except:
-        print("aborted reading fragment", fragment_id)
+    except Exception as e:
+        print("aborted reading fragment", fragment_id, e)
         return None
 
     x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
