@@ -325,8 +325,8 @@ import gc
 if __name__ == "__main__":
     # Loading the model
     model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
-    # model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
-    model.cuda()
+    model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
+    model.to(device)
     model.eval()
     wandb.init(
         project="Vesuvius", 
