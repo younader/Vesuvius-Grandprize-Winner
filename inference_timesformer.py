@@ -29,6 +29,7 @@ except:
     print("No GPUs visible")
     # Detect the number of GPUs available
     num_gpus = torch.cuda.device_count()
+    num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
 
     # Generate a string "0,1,2,...,num_gpus-1"
     gpu_ids = ",".join(str(i) for i in range(num_gpus))
@@ -324,13 +325,13 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
         
         # Multiply by the kernel tensor
         y_preds_multiplied = y_preds_resized * kernel_tensor  # Broadcasting kernel to all images in the batch
-
+        y_preds_multiplied = y_preds_multiplied.squeeze(1)
         # Move results to CPU as a NumPy array
-        y_preds_multiplied_cpu = y_preds_multiplied.squeeze(1).cpu().numpy()  # Shape: (batch_size, 64, 64)
+        # y_preds_multiplied_cpu = y_preds_multiplied.cpu().numpy()  # Shape: (batch_size, 64, 64)
 
         # Update mask_pred and mask_count in a batch manner
         for i, (x1, y1, x2, y2) in enumerate(xys):
-            mask_pred[y1:y2, x1:x2] += y_preds_multiplied_cpu[i]
+            mask_pred[y1:y2, x1:x2] += y_preds_multiplied[i].cpu().numpy()
             mask_count[y1:y2, x1:x2] += mask_count_kernel
 
         # for i, (x1, y1, x2, y2) in enumerate(xys):
