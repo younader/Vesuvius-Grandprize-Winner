@@ -304,7 +304,7 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
     mask_count_kernel = np.ones((CFG.size, CFG.size))
     kernel = gkern(CFG.size, 1)
     kernel = kernel / kernel.max()
-    # model.eval()
+    model.eval()
 
     kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
 
