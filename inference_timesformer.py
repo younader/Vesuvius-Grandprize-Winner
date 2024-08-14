@@ -22,7 +22,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from tap import Tap
 import glob
 
@@ -300,7 +300,8 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
         images = images.to(device)
         batch_size = images.size(0)
         with torch.no_grad():
-            y_preds = model(images)
+            with torch.autocast(device_type="cuda"):
+                y_preds = model(images)
         y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
 
         # for i, (x1, y1, x2, y2) in enumerate(xys):
