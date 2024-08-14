@@ -37,6 +37,7 @@ except:
     # Set the CUDA_VISIBLE_DEVICES environment variable
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
     print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+    print(f"Using {torch.cuda.device_count()} GPUs")
 
 from tap import Tap
 import glob
