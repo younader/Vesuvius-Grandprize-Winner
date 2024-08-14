@@ -67,7 +67,7 @@ class InferenceArgumentParser(Tap):
     stride: int = 2
     start_idx:int=15
     workers: int = 4
-    batch_size: int = 128
+    batch_size: int = 32
     size:int=64
     reverse:int=0
     device:str='cuda'
@@ -110,7 +110,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 64
+    num_workers = 16 * torch.cuda.device_count()
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -366,7 +366,7 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
         #     mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
         #     mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
-    mask_pred /= mask_count
+    mask_pred /= np.clip(mask_count, a_min=1, a_max=None)
     return mask_pred
 import gc
 
