@@ -395,6 +395,16 @@ if __name__ == "__main__":
 
                     preds.append(mask_pred)
 
+                    if len(args.out_path) > 0:
+                        # CV2 image
+                        image_cv = (mask_pred * 255).astype(np.uint8)
+                        try:
+                            os.makedirs(args.out_path,exist_ok=True)
+                        except:
+                            pass
+                        cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
+                    del mask_pred
+
             img=wandb.Image(
             preds[0], 
             caption=f"{fragment_id}"
@@ -402,16 +412,16 @@ if __name__ == "__main__":
             wandb.log({'predictions':img})
             gc.collect()
 
-            if len(args.out_path) > 0:
-                # CV2 image
-                image_cv = (mask_pred * 255).astype(np.uint8)
-                try:
-                    os.makedirs(args.out_path,exist_ok=True)
-                except:
-                    pass
-                cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
 
-    del mask_pred,test_loader,model
+    del test_loader, model
     torch.cuda.empty_cache()
     gc.collect()
     wandb.finish()
+    
+    # Explicitly shut down the DataParallel model
+    if isinstance(model, DataParallel):
+        model = model.module  # Extract the original model
+    model.cpu()  # Move the model to CPU
+    del model  # Delete the model to free up GPU memory
+
+    torch.cuda.empty_cache()  # Clean up GPU memory again
