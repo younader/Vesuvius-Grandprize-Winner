@@ -288,11 +288,11 @@ def scheduler_step(scheduler, avg_val_loss, epoch):
     scheduler.step(epoch)
 
 def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
-    model.eval()
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
     kernel = gkern(CFG.size, 1)
     kernel = kernel / kernel.max()
+    model.eval()
 
     kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
 
@@ -326,7 +326,7 @@ if __name__ == "__main__":
     # Loading the model
     model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
     # model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
-    model.to(device)
+    model.cuda()
     model.eval()
     wandb.init(
         project="Vesuvius", 
