@@ -1,5 +1,39 @@
 import os
-import torch.nn as nn
+import subprocess
+
+def get_available_gpus():
+    try:
+        # Use nvidia-smi to get the number of available GPUs
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        gpu_count = len(result.stdout.splitlines())
+        return gpu_count
+    except Exception as e:
+        print(f"Could not detect GPUs: {e}")
+        return 0
+
+try:
+    print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
+except:
+    print("No GPUs visible")
+    # Detect the number of GPUs available
+    num_gpus = get_available_gpus()
+    print(f"Detected {num_gpus} GPUs")
+    num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
+
+    # Generate a string "0,1,2,...,num_gpus-1"
+    gpu_ids = ",".join(str(i) for i in range(num_gpus))
+
+    # Set the CUDA_VISIBLE_DEVICES environment variable
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+    print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
+# Set the CUDA_VISIBLE_DEVICES environment variable
+os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")import torch.nn as nn
 from torch.nn import DataParallel
 import torch.nn.functional as F
 from timesformer_pytorch import TimeSformer
@@ -23,21 +57,6 @@ from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 print(f"Using {torch.cuda.device_count()} GPUs")
-try:
-    print(f"Visible GPUs: {os.environ['CUDA_VISIBLE_DEVICES']}")
-except:
-    print("No GPUs visible")
-    # Detect the number of GPUs available
-    num_gpus = torch.cuda.device_count()
-    num_gpus = min(num_gpus, 4)  # Limit to 4 GPUs
-
-    # Generate a string "0,1,2,...,num_gpus-1"
-    gpu_ids = ",".join(str(i) for i in range(num_gpus))
-
-    # Set the CUDA_VISIBLE_DEVICES environment variable
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-    print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
-    print(f"Using {torch.cuda.device_count()} GPUs")
 
 from tap import Tap
 import glob
