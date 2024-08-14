@@ -22,7 +22,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 from tap import Tap
 import glob
 
