@@ -76,7 +76,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 16
+    num_workers = 128
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
