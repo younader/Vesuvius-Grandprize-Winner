@@ -77,7 +77,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 16
+    num_workers = 128
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -286,21 +286,33 @@ def get_scheduler(cfg, optimizer):
 def scheduler_step(scheduler, avg_val_loss, epoch):
     scheduler.step(epoch)
 
-def predict_fn(test_loader, model, device, test_xyxys,pred_shape):
+def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
-    kernel=gkern(CFG.size,1)
-    kernel=kernel/kernel.max()
+    kernel = gkern(CFG.size, 1)
+    kernel = kernel / kernel.max()
 
-    for step, (images,xys) in tqdm(enumerate(test_loader),total=len(test_loader)):
+    kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
+
+    for step, (images, xys) in tqdm(enumerate(test_loader), total=len(test_loader)):
         images = images.to(device)
         batch_size = images.size(0)
         with torch.no_grad():
-            with torch.autocast(device_type="cuda"):
-                y_preds = model(images)
-        y_preds = torch.sigmoid(y_preds).to('cpu')
+            y_preds = model(images)
+        y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
+
         for i, (x1, y1, x2, y2) in enumerate(xys):
-            mask_pred[y1:y2, x1:x2] += np.multiply(F.interpolate(y_preds[i].unsqueeze(0).float(),scale_factor=16,mode='bilinear').squeeze(0).squeeze(0).numpy(),kernel)
+            # Perform interpolation on the GPU
+            y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
+            
+            # Perform multiplication on the GPU
+            multiplied_result = y_pred_resized * kernel_tensor
+
+            # Move the result to CPU and convert to numpy
+            multiplied_result_cpu = multiplied_result.cpu().numpy()
+
+            # Update mask_pred and mask_count on CPU
+            mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
             mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
     mask_pred /= mask_count
@@ -310,7 +322,7 @@ import gc
 if __name__ == "__main__":
     # Loading the model
     model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
-    model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
+    # model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
     model.to(device)
     model.eval()
     wandb.init(
