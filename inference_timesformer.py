@@ -323,26 +323,12 @@ def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
         y_preds_multiplied = y_preds_resized * kernel_tensor  # Broadcasting kernel to all images in the batch
         y_preds_multiplied = y_preds_multiplied.squeeze(1)
         # Move results to CPU as a NumPy array
-        # y_preds_multiplied_cpu = y_preds_multiplied.cpu().numpy()  # Shape: (batch_size, 64, 64)
+        y_preds_multiplied_cpu = y_preds_multiplied.cpu().numpy()  # Shape: (batch_size, 64, 64)
 
         # Update mask_pred and mask_count in a batch manner
         for i, (x1, y1, x2, y2) in enumerate(xys):
-            mask_pred[y1:y2, x1:x2] += y_preds_multiplied[i].cpu().numpy()
+            mask_pred[y1:y2, x1:x2] += y_preds_multiplied_cpu[i]
             mask_count[y1:y2, x1:x2] += mask_count_kernel
-
-        # for i, (x1, y1, x2, y2) in enumerate(xys):
-        #     # Perform interpolation on the GPU
-        #     y_pred_resized = F.interpolate(y_preds[i].unsqueeze(0).float(), scale_factor=16, mode='bilinear').squeeze(0).squeeze(0)
-            
-        #     # Perform multiplication on the GPU
-        #     multiplied_result = y_pred_resized * kernel_tensor
-
-        #     # Move the result to CPU and convert to numpy
-        #     multiplied_result_cpu = multiplied_result.cpu().numpy()
-
-        #     # Update mask_pred and mask_count on CPU
-        #     mask_pred[y1:y2, x1:x2] += multiplied_result_cpu
-        #     mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
 
     mask_pred /= np.clip(mask_count, a_min=1, a_max=None)
     return mask_pred
