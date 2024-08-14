@@ -15,7 +15,7 @@ class InferenceArgumentParser(Tap):
     size:int=64
     reverse:int=0
     device:str='cuda'
-    format='tif'
+    format:str='tif'
     multigpu:bool=False
 args = InferenceArgumentParser().parse_args()
 
