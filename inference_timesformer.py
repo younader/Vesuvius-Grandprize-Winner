@@ -1,5 +1,32 @@
 import os
+import subprocess
+from tap import Tap
+import glob
+
+class InferenceArgumentParser(Tap):
+    segment_id: list[str] =['20230925002745']
+    segment_path:str='./eval_scrolls'
+    model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
+    out_path:str=""
+    stride: int = 2
+    start_idx:int=15
+    workers: int = 4
+    batch_size: int = 64
+    size:int=64
+    reverse:int=0
+    device:str='cuda'
+    gpus:int=1
+args = InferenceArgumentParser().parse_args()
+
+# Generate a string "0,1,2,...,args.gpus-1"
+gpu_ids = ",".join(str(i) for i in range(args.gpus))
+
+# Set the CUDA_VISIBLE_DEVICES environment variable
+os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
 import torch.nn as nn
+from torch.nn import DataParallel
 import torch.nn.functional as F
 from timesformer_pytorch import TimeSformer
 import torch
@@ -21,24 +48,8 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-from tap import Tap
-import glob
+print(f"Using {torch.cuda.device_count()} GPUs")
 
-class InferenceArgumentParser(Tap):
-    segment_id: list[str] =['20230925002745']
-    segment_path:str='./eval_scrolls'
-    model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
-    out_path:str=""
-    stride: int = 2
-    start_idx:int=15
-    workers: int = 4
-    batch_size: int = 512
-    size:int=64
-    reverse:int=0
-    device:str='cuda'
-    format='tif'
-args = InferenceArgumentParser().parse_args()
 def gkern(kernlen=21, nsig=3):
     """Returns a 2D Gaussian kernel."""
     x = np.linspace(-nsig, nsig, kernlen+1)
@@ -76,7 +87,7 @@ class CFG:
     # lr = 1e-4 / warmup_factor
     lr = 1e-4 / warmup_factor
     min_lr = 1e-6
-    num_workers = 16
+    num_workers = 16 * args.gpus
     seed = 42
     # ============== augmentation =============
     valid_aug_list = [
@@ -104,28 +115,30 @@ def cfg_init(cfg, mode='val'):
 cfg_init(CFG)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
     images = []
-    mid = 65 // 2
-    start = mid - CFG.in_chans // 2
-    end = mid + CFG.in_chans // 2
     idxs = range(start_idx, end_idx)
+
     for i in idxs:
-        image = cv2.imread(f"{args.segment_path}/{fragment_id}/layers/{i:02}.{args.format}", 0)
+        fragment_path = f"{args.segment_path}/{fragment_id}/layers/{i:02}"
+        if os.path.exists(f"{fragment_path}.tif"):
+            image = cv2.imread(f"{fragment_path}.tif", 0)
+        else:
+            image = cv2.imread(f"{fragment_path}.jpg", 0)
         pad0 = (256 - image.shape[0] % 256)
         pad1 = (256 - image.shape[1] % 256)
         image = np.pad(image, [(0, pad0), (0, pad1)], constant_values=0)
         image=np.clip(image,0,200)
         images.append(image)
     images = np.stack(images, axis=2)
-    if args.reverse != 0 or fragment_id in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']:
+    if any(id_ in fragment_id for id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']):
         print("Reverse Segment")
         images=images[:,:,::-1]
-
     fragment_mask=None
     wildcard_path_mask = f'{args.segment_path}/{fragment_id}/*_mask.png'
     if os.path.exists(f'{args.segment_path}/{fragment_id}/{fragment_id}_mask.png'):
-        fragment_mask=cv2.imread(CFG.comp_dataset_path + f"{args.segment_path}/{fragment_id}/{fragment_id}_mask.png", 0)
+        fragment_mask=cv2.imread(f"{args.segment_path}/{fragment_id}/{fragment_id}_mask.png", 0)
         fragment_mask = np.pad(fragment_mask, [(0, pad0), (0, pad1)], constant_values=0)
     elif len(glob.glob(wildcard_path_mask)) > 0:
         # any *mask.png exists
@@ -136,12 +149,21 @@ def read_image_mask(fragment_id,start_idx=18,end_idx=38,rotation=0):
         # White mask
         fragment_mask = np.ones_like(images[:,:,0]) * 255
 
-    return images,fragment_mask
+    return images, fragment_mask
 
 def get_img_splits(fragment_id,s,e,rotation=0):
     images = []
     xyxys = []
-    image,fragment_mask = read_image_mask(fragment_id,s,e,rotation)
+    if not os.path.exists(f"{args.segment_path}/{fragment_id}"):
+        fragment_id = fragment_id + "_superseded"
+    print('reading ',fragment_id)
+    # check for superseded fragment
+    try:
+        image,fragment_mask = read_image_mask(fragment_id, s,e,rotation)
+    except Exception as e:
+        print("aborted reading fragment", fragment_id, e)
+        return None
+
     x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
     y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
     for y1 in y1_list:
@@ -163,7 +185,7 @@ def get_img_splits(fragment_id,s,e,rotation=0):
     test_loader = DataLoader(test_dataset,
                               batch_size=CFG.valid_batch_size,
                               shuffle=False,
-                              num_workers=CFG.num_workers, pin_memory=True, drop_last=False,
+                              num_workers=CFG.num_workers, pin_memory=(args.gpus==1), drop_last=False,
                               )
     return test_loader, np.stack(xyxys),(image.shape[0],image.shape[1]),fragment_mask
 
@@ -285,67 +307,98 @@ def get_scheduler(cfg, optimizer):
 def scheduler_step(scheduler, avg_val_loss, epoch):
     scheduler.step(epoch)
 
-def predict_fn(test_loader, model, device, test_xyxys,pred_shape):
+def predict_fn(test_loader, model, device, test_xyxys, pred_shape):
     mask_pred = np.zeros(pred_shape)
     mask_count = np.zeros(pred_shape)
-    kernel=gkern(CFG.size,1)
-    kernel=kernel/kernel.max()
+    mask_count_kernel = np.ones((CFG.size, CFG.size))
+    kernel = gkern(CFG.size, 1)
+    kernel = kernel / kernel.max()
     model.eval()
 
-    for step, (images,xys) in tqdm(enumerate(test_loader),total=len(test_loader)):
+    kernel_tensor = torch.tensor(kernel, device=device)  # Move the kernel to the GPU
+
+    for step, (images, xys) in tqdm(enumerate(test_loader), total=len(test_loader)):
         images = images.to(device)
         batch_size = images.size(0)
         with torch.no_grad():
             with torch.autocast(device_type="cuda"):
                 y_preds = model(images)
-        y_preds = torch.sigmoid(y_preds).to('cpu')
-        for i, (x1, y1, x2, y2) in enumerate(xys):
-            mask_pred[y1:y2, x1:x2] += np.multiply(F.interpolate(y_preds[i].unsqueeze(0).float(),scale_factor=16,mode='bilinear').squeeze(0).squeeze(0).numpy(),kernel)
-            mask_count[y1:y2, x1:x2] += np.ones((CFG.size, CFG.size))
+        y_preds = torch.sigmoid(y_preds)  # Keep predictions on GPU
 
-    mask_pred /= mask_count
+        # Resize all predictions at once
+        y_preds_resized = F.interpolate(y_preds.float(), scale_factor=16, mode='bilinear')  # Shape (batch_size, 1, 64, 64)
+        
+        # Multiply by the kernel tensor
+        y_preds_multiplied = y_preds_resized * kernel_tensor  # Broadcasting kernel to all images in the batch
+        y_preds_multiplied = y_preds_multiplied.squeeze(1)
+        # Move results to CPU as a NumPy array
+        y_preds_multiplied_cpu = y_preds_multiplied.cpu().numpy()  # Shape: (batch_size, 64, 64)
+
+        # Update mask_pred and mask_count in a batch manner
+        for i, (x1, y1, x2, y2) in enumerate(xys):
+            mask_pred[y1:y2, x1:x2] += y_preds_multiplied_cpu[i]
+            mask_count[y1:y2, x1:x2] += mask_count_kernel
+
+    mask_pred /= np.clip(mask_count, a_min=1, a_max=None)
     return mask_pred
 import gc
 
 if __name__ == "__main__":
-    model=RegressionPLModel.load_from_checkpoint(args.model_path,strict=False)
-    model.cuda()
+    # Loading the model
+    model = RegressionPLModel.load_from_checkpoint(args.model_path, strict=False)
+    if args.gpus > 1:
+        model = DataParallel(model)  # Wrap model with DataParallel for multi-GPU
+    model.to(device)
     model.eval()
     wandb.init(
         project="Vesuvius", 
         name=f"ALL_scrolls_tta", 
         )
-    for fragment_id in args.segment_id:
-        if os.path.exists(f"{args.segment_path}/{fragment_id}/layers/00.{args.format}"):
+
+    try:
+        for fragment_id in args.segment_id:
             preds=[]
             for r in [0]:
                 for i in [17]:
                     start_f=i
                     end_f=start_f+CFG.in_chans
-                    test_loader,test_xyxz,test_shape,fragment_mask=get_img_splits(fragment_id,start_f,end_f,r)
-                    mask_pred= predict_fn(test_loader, model, device, test_xyxz,test_shape)
-                    mask_pred=np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
-                    mask_pred/=mask_pred.max()
+                    img_split = get_img_splits(fragment_id,start_f,end_f,r)
+                    if img_split is None:
+                        continue
+                    test_loader,test_xyxz,test_shape,fragment_mask = img_split
+                    mask_pred = predict_fn(test_loader, model, device, test_xyxz,test_shape)
+                    mask_pred = np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
+                    mask_pred /= mask_pred.max()
 
                     preds.append(mask_pred)
 
-            img=wandb.Image(
-            preds[0], 
-            caption=f"{fragment_id}"
-            )
-            wandb.log({'predictions':img})
-            gc.collect()
+                    if len(args.out_path) > 0:
+                        # CV2 image
+                        image_cv = (mask_pred * 255).astype(np.uint8)
+                        try:
+                            os.makedirs(args.out_path,exist_ok=True)
+                        except:
+                            pass
+                        cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction_rotated_{r}_layer_{i}.png"), image_cv)
+                    del mask_pred
+            
+            if len(preds) > 0:
+                img=wandb.Image(
+                preds[0], 
+                caption=f"{fragment_id}"
+                )
+                wandb.log({'predictions':img})
+                gc.collect()
+    finally:
+        del test_loader
+        torch.cuda.empty_cache()
+        gc.collect()
+        wandb.finish()
 
-            if len(args.out_path) > 0:
-                # CV2 image
-                image_cv = (mask_pred * 255).astype(np.uint8)
-                try:
-                    os.makedirs(args.out_path,exist_ok=True)
-                except:
-                    pass
-                cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction.png"), image_cv)
+        # Explicitly shut down the DataParallel model
+        if isinstance(model, DataParallel):
+            model = model.module  # Extract the original model
+        model.cpu()  # Move the model to CPU
+        del model  # Delete the model to free up GPU memory
 
-    del mask_pred,test_loader,model
-    torch.cuda.empty_cache()
-    gc.collect()
-    wandb.finish()
+        torch.cuda.empty_cache()  # Clean up GPU memory again
