@@ -4,7 +4,7 @@ from tap import Tap
 import glob
 
 class InferenceArgumentParser(Tap):
-    segment_id: list[str] =['20230925002745']
+    segment_id: list[str] =[]           # Leave empty to process all segments in the segment_path
     segment_path:str='./eval_scrolls'
     model_path:str= 'outputs/vesuvius/pretraining_all/vesuvius-models/valid_20230827161847_0_fr_i3depoch=7.ckpt'
     out_path:str=""
@@ -355,32 +355,42 @@ if __name__ == "__main__":
         name=f"ALL_scrolls_tta", 
         )
 
+    # Set up segments
+    if len(args.segment_id) == 0:
+        args.segment_id = [os.path.basename(x) for x in glob.glob(f"{args.segment_path}/*") if os.path.isdir(x)]
+        # Sort the segment IDs
+        args.segment_id.sort()
+        print(f"Found {len(args.segment_id)} segments: {args.segment_id}")
+
     try:
         for fragment_id in args.segment_id:
             preds=[]
-            for r in [0]:
-                for i in [17]:
-                    start_f=i
-                    end_f=start_f+CFG.in_chans
-                    img_split = get_img_splits(fragment_id,start_f,end_f,r)
-                    if img_split is None:
-                        continue
-                    test_loader,test_xyxz,test_shape,fragment_mask = img_split
-                    mask_pred = predict_fn(test_loader, model, device, test_xyxz,test_shape)
-                    mask_pred = np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
-                    mask_pred /= mask_pred.max()
+            try:
+                for r in [0]:
+                    for i in [17]:
+                        start_f=i
+                        end_f=start_f+CFG.in_chans
+                        img_split = get_img_splits(fragment_id,start_f,end_f,r)
+                        if img_split is None:
+                            continue
+                        test_loader,test_xyxz,test_shape,fragment_mask = img_split
+                        mask_pred = predict_fn(test_loader, model, device, test_xyxz,test_shape)
+                        mask_pred = np.clip(np.nan_to_num(mask_pred),a_min=0,a_max=1)
+                        mask_pred /= mask_pred.max()
 
-                    preds.append(mask_pred)
+                        preds.append(mask_pred)
 
-                    if len(args.out_path) > 0:
-                        # CV2 image
-                        image_cv = (mask_pred * 255).astype(np.uint8)
-                        try:
-                            os.makedirs(args.out_path,exist_ok=True)
-                        except:
-                            pass
-                        cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction_rotated_{r}_layer_{i}.png"), image_cv)
-                    del mask_pred
+                        if len(args.out_path) > 0:
+                            # CV2 image
+                            image_cv = (mask_pred * 255).astype(np.uint8)
+                            try:
+                                os.makedirs(args.out_path,exist_ok=True)
+                            except:
+                                pass
+                            cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction_rotated_{r}_layer_{i}.png"), image_cv)
+                        del mask_pred
+            except Exception as e:
+                print(f"Failed to process {fragment_id}: {e}")
             
             if len(preds) > 0:
                 img=wandb.Image(
