@@ -398,8 +398,13 @@ if __name__ == "__main__":
                     gc.collect()
             except Exception as e:
                 print(f"Failed to process {fragment_id}: {e}")
+    except Exception as e:
+        print(f"Final Exception: {e}")
     finally:
-        del test_loader
+        try:
+            del test_loader
+        except:
+            pass
         torch.cuda.empty_cache()
         gc.collect()
         wandb.finish()
