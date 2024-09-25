@@ -389,16 +389,15 @@ if __name__ == "__main__":
                                 pass
                             cv2.imwrite(os.path.join(args.out_path, f"{fragment_id}_prediction_rotated_{r}_layer_{i}.png"), image_cv)
                         del mask_pred
+                if len(preds) > 0:
+                    img=wandb.Image(
+                    preds[0], 
+                    caption=f"{fragment_id}"
+                    )
+                    wandb.log({'predictions':img})
+                    gc.collect()
             except Exception as e:
                 print(f"Failed to process {fragment_id}: {e}")
-            
-            if len(preds) > 0:
-                img=wandb.Image(
-                preds[0], 
-                caption=f"{fragment_id}"
-                )
-                wandb.log({'predictions':img})
-                gc.collect()
     finally:
         del test_loader
         torch.cuda.empty_cache()
