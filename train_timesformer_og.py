@@ -12,6 +12,7 @@ from timesformer_pytorch import TimeSformer
 
 import random
 import threading
+import glob
 
 import numpy as np
 import wandb
@@ -142,10 +143,13 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43, CFG=CFG):
     images = np.stack(images, axis=2)
     if any(id_ in fragment_id_ for id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']):
         images=images[:,:,::-1]
-    if any(id_ in fragment_id_ for id_ in ['20231022170901','20231022170900']):
-        mask = cv2.imread( f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.tiff", 0)
+    # Get the list of files that match the pattern
+    inklabel_files = glob.glob(f"train_scrolls/{fragment_id}/*inklabels.*")
+    if len(inklabel_files) > 0:
+        mask = cv2.imread( inklabel_files[0], 0)
     else:
-        mask = cv2.imread( f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels.png", 0)
+        print(f"Creating empty mask for {fragment_id}")
+        mask = np.zeroes(images[0].shape)
     fragment_mask=cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id_}_mask.png", 0)
     fragment_mask = np.pad(fragment_mask, [(0, pad0), (0, pad1)], constant_values=0)
     mask = mask.astype('float32')
