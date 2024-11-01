@@ -3,16 +3,18 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from datetime import timedelta
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from timesformer_pytorch import TimeSformer
+import scipy.ndimage as ndimage
 
 import random
 import threading
 import glob
+import gc
 
 import numpy as np
 import wandb
@@ -36,6 +38,133 @@ import torch
 from warmup_scheduler import GradualWarmupScheduler
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
+
+class CompressedRegionAugment(A.ImageOnlyTransform):
+    """
+    Custom augmentation for 3D volume data that compresses regions
+    by applying different slicing and flipping operations along the z-axis.
+
+    Args:
+        always_apply (bool): Whether to always apply this transformation.
+        p (float): Probability of applying the transformation.
+    """
+    def __init__(self, always_apply=False, p=0.5):
+        super(CompressedRegionAugment, self).__init__()
+        self.p = p
+
+    def apply(self, img, copy=True, **params):
+        """
+        Apply the custom region compression augmentation with optimized slicing.
+
+        Args:
+            img (numpy.ndarray): 3D volume data (x, y, z).
+
+        Returns:
+            numpy.ndarray: Augmented 3D volume.
+        """
+        if np.random.uniform(0, 1) > self.p:
+            return img
+        # Ensure the image is 3D
+        if len(img.shape) != 3:
+            raise ValueError("Input must be a 3D volume (x, y, z).")
+        
+        z_dim = img.shape[2]
+        middle = z_dim // 2
+        
+        # Create an empty array for the result, to avoid concatenation
+        augmented_img = np.empty_like(img)
+
+        # Fill the first part [:middle, ::-2]
+        augmented_img[:, :, :middle//2] = img[:, :, 0:2*(middle//2)][:, :, ::-2]
+
+        # Fill the second part [0:end, ::2]
+        augmented_img[:, :, middle//2:(middle + middle//2)] = img[:, :, 0:2*middle][:, :, ::2]
+
+        # Fill the third part [middle:end, ::-2]
+        augmented_img[:, :, (middle + middle//2):] = img[:, :, -2*(z_dim - (middle + middle//2)):][:, :, ::-2]
+
+        return augmented_img
+
+    def get_transform_init_args_names(self):
+        return []
+    
+
+class ElasticDeformationAugment(A.ImageOnlyTransform):
+    """
+    Custom elastic deformation augmentation for 3D volume data.
+
+    Args:
+        alpha_range (tuple): Range of values for alpha (controls deformation intensity).
+        sigma_range (tuple): Range of values for sigma (controls smoothness of deformation).
+        always_apply (bool): Whether to always apply this transformation.
+        p (float): Probability of applying the transformation.
+    """
+    def __init__(self, alpha_range=(250, 600), sigma_range=(5, 10), always_apply=False, p=0.5):
+        super(ElasticDeformationAugment, self).__init__()
+        self.alpha_range = alpha_range
+        self.sigma_range = sigma_range
+
+    def apply(self, img, **params):
+        """
+        Apply the elastic deformation augmentation with random alpha and sigma values.
+
+        Args:
+            img (numpy.ndarray): 3D volume data (x, y, z).
+
+        Returns:
+            numpy.ndarray: Augmented 3D volume with elastic deformation.
+        """
+        if len(img.shape) != 3:
+            raise ValueError("Input must be a 3D volume (x, y, z).")
+        
+        # Randomly select alpha and sigma within the given ranges
+        alpha = np.random.uniform(self.alpha_range[0], self.alpha_range[1])
+        sigma = np.random.uniform(self.sigma_range[0], self.sigma_range[1])
+
+        return self.elastic_deformation_3d(img, alpha, sigma)
+
+    def elastic_deformation_3d(self, volume, alpha, sigma):
+        """
+        Apply elastic deformation to a 3D volume.
+
+        Parameters:
+        - volume: 3D numpy array (the input volume)
+        - alpha: Scaling factor for displacement fields (controls deformation intensity)
+        - sigma: Standard deviation for Gaussian smoothing (controls smoothness of the deformations)
+
+        Returns:
+        - Deformed 3D volume as a numpy array
+        """
+        
+        # Generate random displacement fields for x, y, and z axes
+        random_displacements_x = np.random.rand(*volume.shape) * 2 - 1
+        random_displacements_y = np.random.rand(*volume.shape) * 2 - 1
+        random_displacements_z = np.random.rand(*volume.shape) * 2 - 1
+        
+        # Smooth the displacement fields using a Gaussian filter
+        displacement_x = ndimage.gaussian_filter(random_displacements_x, sigma, mode="constant", cval=0) * alpha
+        displacement_y = ndimage.gaussian_filter(random_displacements_y, sigma, mode="constant", cval=0) * alpha
+        displacement_z = ndimage.gaussian_filter(random_displacements_z, sigma, mode="constant", cval=0) * alpha
+        
+        # Create meshgrid for original coordinates
+        x, y, z = np.meshgrid(np.arange(volume.shape[0]),
+                              np.arange(volume.shape[1]),
+                              np.arange(volume.shape[2]), indexing='ij')
+        
+        # Add the displacements to the original coordinates
+        indices = np.reshape(x + displacement_x, (-1, 1)), \
+                  np.reshape(y + displacement_y, (-1, 1)), \
+                  np.reshape(z + displacement_z, (-1, 1))
+        
+        # Apply the deformation by interpolating the volume at the new coordinates
+        deformed_volume = ndimage.map_coordinates(volume, indices, order=0, mode='reflect')
+        
+        # Reshape to the original volume shape
+        return deformed_volume.reshape(volume.shape)
+
+    def get_transform_init_args_names(self):
+        return ['alpha_range', 'sigma_range']
+
 class CFG:
     # ============== comp exp name =============
     comp_name = 'vesuvius'
@@ -48,8 +177,9 @@ class CFG:
     # ============== training cfg =============
     size = 64
     tile_size = 256
-    stride = tile_size // 8
-    train_batch_size = 196 # 32
+    # stride = tile_size // 8
+    stride = 64
+    train_batch_size = 128 # 32
     valid_batch_size = train_batch_size
 
     scheduler = 'GradualWarmupSchedulerV2'
@@ -64,7 +194,7 @@ class CFG:
     weight_decay = 1e-6
     max_grad_norm = 100
 
-    num_workers = 16
+    num_workers = 32
 
     seed = 0
 
@@ -76,6 +206,8 @@ class CFG:
         f'{comp_name}-models/'
     # ============== augmentation =============
     train_aug_list = [
+        CompressedRegionAugment(p=0.35),
+        ElasticDeformationAugment(p=0.25),
         A.Resize(size, size),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
@@ -143,14 +275,63 @@ def read_image_mask(fragment_id,start_idx=17,end_idx=43, CFG=CFG):
     images = np.stack(images, axis=2)
     if any(id_ in fragment_id_ for id_ in ['20230701020044','verso','20230901184804','20230901234823','20230531193658','20231007101615','20231005123333','20231011144857','20230522215721', '20230919113918', '20230625171244','20231022170900','20231012173610','20231016151000']):
         images=images[:,:,::-1]
+
     # Get the list of files that match the pattern
+
     inklabel_files = glob.glob(f"train_scrolls/{fragment_id}/*inklabels.*")
+    expected_file_prefix = f"train_scrolls/{fragment_id}/{fragment_id_}_inklabels."
+    for file in inklabel_files:
+        if file[:min(len(file), len(expected_file_prefix))] == expected_file_prefix:
+            inklabel_files = [file]
+            break
     if len(inklabel_files) > 0:
+        if len(inklabel_files) > 1:
+            print(f"{fragment_id} has {len(inklabel_files)} inklabel files")
         mask = cv2.imread( inklabel_files[0], 0)
     else:
         print(f"Creating empty mask for {fragment_id}")
-        mask = np.zeroes(images[0].shape)
-    fragment_mask=cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id_}_mask.png", 0)
+        mask = np.zeros((images.shape[0], images.shape[1]), dtype=np.uint8)
+        
+    # Expand the inklabel strokes for julian's labels
+    if "working" in fragment_id:
+        # Define a n x n kernel
+        kernel_size = 30
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+
+        # Apply dilation with the kernel
+        mask = cv2.dilate(mask, kernel, iterations=1)
+        print(f"Dillated mask for {fragment_id}")
+
+    # Get the dimensions of the first image
+    image_height, image_width = images.shape[0], images.shape[1]
+    mask_height, mask_width = mask.shape[0], mask.shape[1]
+    
+    # Handle height separately
+    if mask_height != image_height:
+        if mask_height > image_height:
+            # Crop the mask height
+            mask = mask[:image_height, :]
+            print(f"Mask height for {fragment_id} cropped from {mask_height} to {image_height}")
+        else:
+            # Pad the mask height
+            pad_bottom = image_height - mask_height
+            mask = np.pad(mask, [(0, pad_bottom), (0, 0)], mode='constant', constant_values=0)
+            print(f"Mask height for {fragment_id} padded from {mask_height} to {image_height}")
+    
+    # Handle width separately
+    if mask_width != image_width:
+        if mask_width > image_width:
+            # Crop the mask width
+            mask = mask[:, :image_width]
+            print(f"Mask width for {fragment_id} cropped from {mask_width} to {image_width}")
+        else:
+            # Pad the mask width
+            pad_right = image_width - mask_width
+            mask = np.pad(mask, [(0, 0), (0, pad_right)], mode='constant', constant_values=0)
+            print(f"Mask width for {fragment_id} padded from {mask_width} to {image_width}")
+
+    fragment_mask_path = glob.glob(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/*mask.png")[0]
+    fragment_mask=cv2.imread(fragment_mask_path, 0)
     fragment_mask = np.pad(fragment_mask, [(0, pad0), (0, pad1)], constant_values=0)
     mask = mask.astype('float32')
     mask/=255
@@ -173,7 +354,8 @@ def worker_function(fragment_id, CFG):
         return None
     x1_list = list(range(0, image.shape[1]-CFG.tile_size+1, CFG.stride))
     y1_list = list(range(0, image.shape[0]-CFG.tile_size+1, CFG.stride))
-    windows_dict={}
+    windows_dict_train={}
+    windows_dict_val={}
 
     for a in y1_list:
         for b in x1_list:
@@ -181,43 +363,51 @@ def worker_function(fragment_id, CFG):
                 if (fragment_id==CFG.valid_id) or (not np.all(mask[a:a + CFG.tile_size, b:b + CFG.tile_size]<0.05)):
                     for yi in range(0,CFG.tile_size,CFG.size):
                         for xi in range(0,CFG.tile_size,CFG.size):
-                            y1=a+yi
-                            x1=b+xi
-                            y2=y1+CFG.size
-                            x2=x1+CFG.size
+                            y1=int(a+yi)
+                            x1=int(b+xi)
+                            y2=int(y1+CFG.size)
+                            x2=int(x1+CFG.size)
                             if fragment_id!=CFG.valid_id:
-                                train_images.append(image[y1:y2, x1:x2])
-                                train_masks.append(mask[y1:y2, x1:x2, None])
-                                assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                            if fragment_id==CFG.valid_id:
-                                if (y1,y2,x1,x2) not in windows_dict:
-                                    valid_images.append(image[y1:y2, x1:x2])
-                                    valid_masks.append(mask[y1:y2, x1:x2, None])
-                                    valid_xyxys.append([x1, y1, x2, y2])
+                                if (y1,y2,x1,x2) not in windows_dict_train:
+                                    train_images.append(image[y1:y2, x1:x2].copy())
+                                    train_masks.append(mask[y1:y2, x1:x2, None].copy())
                                     assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
-                                    windows_dict[(y1,y2,x1,x2)]='1'
+                                    windows_dict_train[(y1,y2,x1,x2)]='1'
+                            if fragment_id==CFG.valid_id:
+                                if (y1,y2,x1,x2) not in windows_dict_val:
+                                    valid_images.append(image[y1:y2, x1:x2].copy())
+                                    valid_masks.append(mask[y1:y2, x1:x2, None].copy())
+                                    valid_xyxys.append([x1, y1, x2, y2].copy())
+                                    assert image[y1:y2, x1:x2].shape==(CFG.size,CFG.size,CFG.in_chans)
+                                    windows_dict_val[(y1,y2,x1,x2)]='1'
 
     print("finished reading fragment", fragment_id)
+    del image, mask, fragment_mask
+    gc.collect()
 
     return train_images, train_masks, valid_images, valid_masks, valid_xyxys
 
 def get_train_valid_dataset(fragment_ids=['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']):
-    threads = []
     results = [None] * len(fragment_ids)
 
     # Function to run in each thread
     def thread_target(idx, fragment_id):
         results[idx] = worker_function(fragment_id, CFG)
 
-    # Create and start threads
-    for idx, fragment_id in enumerate(fragment_ids):
-        thread = threading.Thread(target=thread_target, args=(idx, fragment_id))
-        threads.append(thread)
-        thread.start()
+    num_threads = 4
+    for start in range(0, len(fragment_ids), num_threads):
+        threads = []
+        # Create and start threads
+        for idx, fragment_id in enumerate(fragment_ids):
+            if idx < start or idx >= start + num_threads:
+                continue
+            thread = threading.Thread(target=thread_target, args=(idx, fragment_id))
+            threads.append(thread)
+            thread.start()
 
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
 
     train_images = []
     train_masks = []
@@ -238,9 +428,9 @@ def get_train_valid_dataset(fragment_ids=['20231210121321','20231022170901','202
 
 def get_transforms(data, cfg):
     if data == 'train':
-        aug = A.Compose(cfg.train_aug_list)
+        aug = A.Compose(cfg.train_aug_list, is_check_shapes=False)
     elif data == 'valid':
-        aug = A.Compose(cfg.valid_aug_list)
+        aug = A.Compose(cfg.valid_aug_list, is_check_shapes=False)
     return aug
 
 class CustomDataset(Dataset):
@@ -377,6 +567,42 @@ class RegressionPLModel(pl.LightningModule):
     
         scheduler = get_scheduler(CFG, optimizer)
         return [optimizer],[scheduler]
+    
+    def setup(self, stage=None):
+        # Setup the dataloaders only after all GPUs are initialized and synchronized
+        if stage == 'fit':
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()  # Synchronize all GPUs before loading data
+                
+            frag_ids = [f for f in os.listdir("train_scrolls") if os.path.isdir(os.path.join("train_scrolls", f)) and ("working" in f)]
+            frag_ids += ['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']
+            # frag_ids = ['20231210121321','20231022170901', [f for f in os.listdir("train_scrolls") if os.path.isdir(os.path.join("train_scrolls", f)) and ("working" in f)][0]]
+            print(frag_ids)
+                
+            train_images, train_masks, valid_images, valid_masks, valid_xyxys = get_train_valid_dataset(frag_ids)
+            valid_xyxys = np.stack(valid_xyxys)
+            train_dataset = CustomDataset(
+                train_images, CFG, labels=train_masks, transform=get_transforms(data='train', cfg=CFG))
+            valid_dataset = CustomDataset(
+                valid_images, CFG,xyxys=valid_xyxys, labels=valid_masks, transform=get_transforms(data='valid', cfg=CFG))
+
+            self.train_loader = DataLoader(train_dataset,
+                                        batch_size=CFG.train_batch_size,
+                                        shuffle=True,
+                                        prefetch_factor=4,
+                                        num_workers=CFG.num_workers, pin_memory=True, drop_last=True,
+                                        )
+            self.valid_loader = DataLoader(valid_dataset,
+                                        batch_size=CFG.valid_batch_size,
+                                        shuffle=False,
+                                        prefetch_factor=4,
+                                        num_workers=CFG.num_workers, pin_memory=True, drop_last=True)
+
+    def train_dataloader(self):
+        return self.train_loader
+
+    def val_dataloader(self):
+        return self.valid_loader
 
 
 
@@ -424,28 +650,15 @@ for fid in fragments:
     valid_mask_gt = cv2.imread(CFG.comp_dataset_path + f"train_scrolls/{fragment_id}/{fragment_id}_inklabels.png", 0)
 
     pred_shape=valid_mask_gt.shape
-    train_images, train_masks, valid_images, valid_masks, valid_xyxys = get_train_valid_dataset()
-    valid_xyxys = np.stack(valid_xyxys)
-    train_dataset = CustomDataset(
-        train_images, CFG, labels=train_masks, transform=get_transforms(data='train', cfg=CFG))
-    valid_dataset = CustomDataset(
-        valid_images, CFG,xyxys=valid_xyxys, labels=valid_masks, transform=get_transforms(data='valid', cfg=CFG))
-
-    train_loader = DataLoader(train_dataset,
-                                batch_size=CFG.train_batch_size,
-                                shuffle=True,
-                                num_workers=CFG.num_workers, pin_memory=True, drop_last=True,
-                                )
-    valid_loader = DataLoader(valid_dataset,
-                                batch_size=CFG.valid_batch_size,
-                                shuffle=False,
-                                num_workers=CFG.num_workers, pin_memory=True, drop_last=True)
+    # frag_ids = [f for f in os.listdir("train_scrolls") if os.path.isdir(os.path.join("train_scrolls", f)) and ("working" in f)]
+    # frag_ids += ['20231210121321','20231022170901','20231106155351','20231005123336','20230820203112','20230826170124','20230702185753','20230522215721','20230531193658','20230903193206','20230902141231','20231007101615','20230929220926','recto','20231016151000','20231012184423','20231031143850']
+    # print(frag_ids)
 
     wandb_logger = WandbLogger(project="vesivus",name=run_slug+f'timesformer_big6_finetune')
     model=RegressionPLModel(pred_shape=pred_shape,size=CFG.size)
     wandb_logger.watch(model, log="all", log_freq=100)
     trainer = pl.Trainer(
-        max_epochs=20,
+        max_epochs=150,
         accelerator="gpu",
         devices=-1,
         logger=wandb_logger,
@@ -454,12 +667,15 @@ for fid in fragments:
         precision='16-mixed',
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
-        strategy='ddp_find_unused_parameters_true',
-        callbacks=[ModelCheckpoint(filename=f'timesformer_wild16_{fid}_fr'+'{epoch}',dirpath=CFG.model_dir,monitor='train/total_loss',mode='min',save_top_k=CFG.epochs),
+        # strategy='ddp_find_unused_parameters_true',
+        callbacks=[ModelCheckpoint(filename=f'timesformer_wild16_deduped_elastic_{fid}_fr'+'{epoch}',dirpath=CFG.model_dir,monitor='train/total_loss',mode='min',save_top_k=150),
 
                     ],
 
     )
-    trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
+
+    # trainer.fit(model=model, ckpt_path=os.path.join(CFG.model_dir, 'timesformer_wild16_deduped_elastic_20231210121321_frepoch=54.ckpt'))
+    trainer.fit(model=model)
 
     wandb.finish()
+
