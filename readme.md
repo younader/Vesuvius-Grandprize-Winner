@@ -1,3 +1,5 @@
+# This repository has been archived. Further developement will resume at the monorepo of the Vesuvius Organization Team over at https://github.com/ScrollPrize/villa/tree/main/ink-detection    
+Thank you to all contributors! 
 # Vesuvius Grandprize Winning Solution
 ![Vesuvius Challenge GP Solution](pictures/logo.png)
 
